@@ -1,0 +1,331 @@
+#!/usr/bin/env python3
+"""
+beorg2journelly.py - 2-way synchronization tool between BeOrg and Journelly org files
+
+This script synchronizes TODO tasks between a BeOrg inbox.org file and a Journelly.org file.
+- Incomplete tasks appearing in only one file are added to the other
+- Completed tasks are removed from both files
+- Tasks are matched by exact text content
+- Earlier timestamps are preserved on conflicts
+"""
+
+import argparse
+import re
+import sys
+from datetime import datetime
+from typing import Dict, List, NamedTuple, Set, Tuple
+
+
+class Task(NamedTuple):
+    """Represents a TODO task with its content, timestamp, and completion status."""
+    content: str
+    timestamp: datetime
+    is_completed: bool
+
+
+class BeOrgParser:
+    """Parser for BeOrg inbox.org file format."""
+
+    def __init__(self, verbose: bool = False):
+        self.verbose = verbose
+
+    def parse_file(self, filepath: str) -> List[Task]:
+        """Parse BeOrg file and return list of tasks."""
+        tasks = []
+        try:
+            with open(filepath, 'r', encoding='utf-8') as f:
+                content = f.read()
+        except FileNotFoundError:
+            if self.verbose:
+                print(f"BeOrg file not found: {filepath}, treating as empty")
+            return tasks
+
+        lines = content.strip().split('\n')
+        i = 0
+
+        while i < len(lines):
+            line = lines[i].strip()
+
+            # Look for level 1 headers starting with TODO or DONE
+            if line.startswith('* TODO ') or line.startswith('* DONE '):
+                is_completed = line.startswith('* DONE ')
+                task_content = line[7:]  # Remove "* TODO " or "* DONE "
+
+                # Look for timestamp on next line
+                if i + 1 < len(lines):
+                    next_line = lines[i + 1].strip()
+                    pattern = r'\[(\d{4}-\d{2}-\d{2} \w{3} \d{2}:\d{2})\]'
+                    timestamp_match = re.match(pattern, next_line)
+                    if timestamp_match:
+                        timestamp_str = timestamp_match.group(1)
+                        try:
+                            timestamp = datetime.strptime(
+                                timestamp_str, '%Y-%m-%d %a %H:%M')
+                            task = Task(task_content, timestamp, is_completed)
+                            tasks.append(task)
+                            if self.verbose:
+                                status = "DONE" if is_completed else "TODO"
+                                msg = (f"Parsed BeOrg task: [{status}] "
+                                       f"{task_content} at {timestamp_str}")
+                                print(msg)
+                            i += 1  # Skip timestamp line
+                        except ValueError:
+                            if self.verbose:
+                                print(f"Invalid timestamp format: {timestamp_str}")
+            i += 1
+
+        return tasks
+
+    def write_file(self, filepath: str, tasks: List[Task]) -> None:
+        """Write tasks to BeOrg file format."""
+        lines = []
+        for task in tasks:
+            status = "DONE" if task.is_completed else "TODO"
+            lines.append(f"* {status} {task.content}")
+            timestamp_str = task.timestamp.strftime('%Y-%m-%d %a %H:%M')
+            lines.append(f"[{timestamp_str}]")
+
+        with open(filepath, 'w', encoding='utf-8') as f:
+            f.write('\n'.join(lines))
+            if lines:  # Add final newline if there's content
+                f.write('\n')
+
+
+class JournellyParser:
+    """Parser for Journelly.org file format."""
+
+    def __init__(self, verbose: bool = False):
+        self.verbose = verbose
+
+    def parse_file(self, filepath: str) -> List[Task]:
+        """Parse Journelly file and return list of tasks."""
+        tasks = []
+        try:
+            with open(filepath, 'r', encoding='utf-8') as f:
+                content = f.read()
+        except FileNotFoundError:
+            if self.verbose:
+                print(f"Journelly file not found: {filepath}, treating as empty")
+            return tasks
+
+        lines = content.strip().split('\n')
+        i = 0
+
+        while i < len(lines):
+            line = lines[i].strip()
+
+            # Look for level 1 headers with timestamp
+            pattern = r'\* \[(\d{4}-\d{2}-\d{2} \w{3} \d{2}:\d{2})\] @ -'
+            timestamp_match = re.match(pattern, line)
+            if timestamp_match:
+                timestamp_str = timestamp_match.group(1)
+                try:
+                    timestamp = datetime.strptime(
+                        timestamp_str, '%Y-%m-%d %a %H:%M')
+
+                    # Look for task on next line
+                    if i + 1 < len(lines):
+                        next_line = lines[i + 1].strip()
+                        if next_line.startswith('- [ ] '):
+                            # Incomplete task
+                            task_content = next_line[6:]  # Remove "- [ ] "
+                            task = Task(task_content, timestamp, False)
+                            tasks.append(task)
+                            if self.verbose:
+                                msg = (f"Parsed Journelly task: [TODO] "
+                                       f"{task_content} at {timestamp_str}")
+                                print(msg)
+                            i += 1  # Skip task line
+                        elif next_line.startswith('- [X] '):
+                            # Completed task
+                            task_content = next_line[6:]  # Remove "- [X] "
+                            task = Task(task_content, timestamp, True)
+                            tasks.append(task)
+                            if self.verbose:
+                                msg = (f"Parsed Journelly task: [DONE] "
+                                       f"{task_content} at {timestamp_str}")
+                                print(msg)
+                            i += 1  # Skip task line
+                except ValueError:
+                    if self.verbose:
+                        print(f"Invalid timestamp format: {timestamp_str}")
+            i += 1
+
+        return tasks
+
+    def write_file(self, filepath: str, tasks: List[Task]) -> None:
+        """Write tasks to Journelly file format."""
+        lines = []
+        for task in tasks:
+            timestamp_str = task.timestamp.strftime('%Y-%m-%d %a %H:%M')
+            lines.append(f"* [{timestamp_str}] @ -")
+            status = "[X]" if task.is_completed else "[ ]"
+            lines.append(f"- {status} {task.content}")
+
+        with open(filepath, 'w', encoding='utf-8') as f:
+            f.write('\n'.join(lines))
+            if lines:  # Add final newline if there's content
+                f.write('\n')
+
+
+class TaskSynchronizer:
+    """Handles 2-way synchronization between BeOrg and Journelly tasks."""
+
+    def __init__(self, verbose: bool = False):
+        self.verbose = verbose
+
+    def synchronize(self, beorg_tasks: List[Task],
+                    journelly_tasks: List[Task]) -> Tuple[List[Task], List[Task]]:
+        """
+        Synchronize tasks between BeOrg and Journelly formats.
+        Returns tuple of (synchronized_beorg_tasks, synchronized_journelly_tasks).
+        """
+        # Create lookup dictionaries by task content
+        beorg_by_content: Dict[str, Task] = {
+            task.content: task for task in beorg_tasks}
+        journelly_by_content: Dict[str, Task] = {
+            task.content: task for task in journelly_tasks}
+
+        # Find all unique task contents
+        all_contents: Set[str] = (
+            set(beorg_by_content.keys()) | set(journelly_by_content.keys()))
+
+        final_beorg_tasks = []
+        final_journelly_tasks = []
+
+        for content in all_contents:
+            beorg_task = beorg_by_content.get(content)
+            journelly_task = journelly_by_content.get(content)
+
+            if beorg_task and journelly_task:
+                # Task exists in both files
+                if self.verbose:
+                    print(f"Task exists in both files: {content}")
+
+                # Use earlier timestamp (conflict resolution)
+                earlier_timestamp = min(beorg_task.timestamp,
+                                        journelly_task.timestamp)
+
+                # Determine completion status
+                is_completed = (
+                    beorg_task.is_completed or journelly_task.is_completed)
+
+                merged_task = Task(content, earlier_timestamp, is_completed)
+
+                if is_completed:
+                    # Remove completed tasks from both files
+                    if self.verbose:
+                        msg = f"Removing completed task from both files: {content}"
+                        print(msg)
+                else:
+                    # Keep incomplete tasks in both files
+                    final_beorg_tasks.append(merged_task)
+                    final_journelly_tasks.append(merged_task)
+                    if self.verbose:
+                        msg = f"Keeping incomplete task in both files: {content}"
+                        print(msg)
+
+            elif beorg_task:
+                # Task exists only in BeOrg
+                if self.verbose:
+                    print(f"Task exists only in BeOrg: {content}")
+
+                if beorg_task.is_completed:
+                    # Remove completed task
+                    if self.verbose:
+                        print(f"Removing completed task from BeOrg: {content}")
+                else:
+                    # Add incomplete task to both files
+                    final_beorg_tasks.append(beorg_task)
+                    final_journelly_tasks.append(beorg_task)
+                    if self.verbose:
+                        print(f"Adding incomplete task to Journelly: {content}")
+
+            elif journelly_task:
+                # Task exists only in Journelly
+                if self.verbose:
+                    print(f"Task exists only in Journelly: {content}")
+
+                if journelly_task.is_completed:
+                    # Remove completed task
+                    if self.verbose:
+                        print(f"Removing completed task from Journelly: {content}")
+                else:
+                    # Add incomplete task to both files
+                    final_beorg_tasks.append(journelly_task)
+                    final_journelly_tasks.append(journelly_task)
+                    if self.verbose:
+                        print(f"Adding incomplete task to BeOrg: {content}")
+
+        return final_beorg_tasks, final_journelly_tasks
+
+
+def main():
+    """Main entry point for the synchronization script."""
+    parser = argparse.ArgumentParser(
+        description=('Synchronize TODO tasks between BeOrg inbox.org '
+                     'and Journelly.org files'),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  %(prog)s beorg_inbox.org journelly.org
+  %(prog)s -v ~/Documents/inbox.org ~/Documents/journelly.org
+        """
+    )
+
+    parser.add_argument('beorg_file', help='Path to BeOrg inbox.org file')
+    parser.add_argument('journelly_file', help='Path to Journelly.org file')
+    parser.add_argument('-v', '--verbose', action='store_true',
+                        help='Enable verbose output showing details')
+
+    args = parser.parse_args()
+
+    # Check if file paths were provided
+    if not args.beorg_file or not args.journelly_file:
+        parser.error("Both BeOrg and Journelly file paths are required")
+        return 1
+
+    if args.verbose:
+        print("Starting synchronization between:")
+        print(f"  BeOrg file: {args.beorg_file}")
+        print(f"  Journelly file: {args.journelly_file}")
+        print()
+
+    try:
+        # Parse both files
+        beorg_parser = BeOrgParser(args.verbose)
+        journelly_parser = JournellyParser(args.verbose)
+
+        beorg_tasks = beorg_parser.parse_file(args.beorg_file)
+        journelly_tasks = journelly_parser.parse_file(args.journelly_file)
+
+        if args.verbose:
+            print(f"\nParsed {len(beorg_tasks)} tasks from BeOrg file")
+            print(f"Parsed {len(journelly_tasks)} tasks from Journelly file")
+            print("\nStarting synchronization...")
+            print()
+
+        # Synchronize tasks
+        synchronizer = TaskSynchronizer(args.verbose)
+        synced_beorg, synced_journelly = synchronizer.synchronize(beorg_tasks, journelly_tasks)
+
+        # Write synchronized tasks back to files
+        beorg_parser.write_file(args.beorg_file, synced_beorg)
+        journelly_parser.write_file(args.journelly_file, synced_journelly)
+
+        if args.verbose:
+            print("\nSynchronization complete!")
+            print(f"Final BeOrg tasks: {len(synced_beorg)}")
+            print(f"Final Journelly tasks: {len(synced_journelly)}")
+        else:
+            print("Synchronization complete")
+
+    except Exception as e:
+        print(f"Error during synchronization: {e}", file=sys.stderr)
+        return 1
+
+    return 0
+
+
+if __name__ == '__main__':
+    sys.exit(main())
