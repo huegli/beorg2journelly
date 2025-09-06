@@ -13,7 +13,8 @@ import argparse
 import re
 import sys
 from datetime import datetime
-from typing import Dict, List, NamedTuple, Set, Tuple
+from typing import Dict, List, NamedTuple, Set, Tuple, override
+import abc
 
 
 class Task(NamedTuple):
@@ -23,23 +24,52 @@ class Task(NamedTuple):
     is_completed: bool
 
 
-class BeOrgParser:
-    """Parser for BeOrg inbox.org file format."""
+class BaseParser(abc.ABC):
+    """Abstract base class for task parsers."""
 
     def __init__(self, verbose: bool = False):
         self.verbose = verbose
 
     def parse_file(self, filepath: str) -> List[Task]:
-        """Parse BeOrg file and return list of tasks."""
-        tasks = []
+        """Read a file and parse tasks from its content."""
         try:
             with open(filepath, 'r', encoding='utf-8') as f:
                 content = f.read()
         except FileNotFoundError:
             if self.verbose:
-                print(f"BeOrg file not found: {filepath}, treating as empty")
-            return tasks
+                parser_name = self.__class__.__name__.replace('Parser', '')
+                print(f"{parser_name} file not found: {filepath}, "
+                      f"treating as empty")
+            return []
+        return self._parse_tasks(content)
 
+    @abc.abstractmethod
+    def _parse_tasks(self, content: str) -> List[Task]:
+        """Parse tasks from a string of file content."""
+        raise NotImplementedError
+
+    def write_file(self, filepath: str, tasks: List[Task]) -> None:
+        """Format and write tasks to a file, sorted by timestamp."""
+        sorted_tasks = sorted(tasks, key=lambda t: t.timestamp, reverse=True)
+        lines = self._format_tasks(sorted_tasks)
+        with open(filepath, 'w', encoding='utf-8') as f:
+            f.write('\n'.join(lines))
+            if lines:
+                f.write('\n')
+
+    @abc.abstractmethod
+    def _format_tasks(self, tasks: List[Task]) -> List[str]:
+        """Format tasks into a list of strings for file writing."""
+        raise NotImplementedError
+
+
+class BeOrgParser(BaseParser):
+    """Parser for BeOrg inbox.org file format."""
+
+    @override
+    def _parse_tasks(self, content: str) -> List[Task]:
+        """Parse tasks from BeOrg file content."""
+        tasks = []
         lines = content.strip().split('\n')
         i = 0
 
@@ -76,40 +106,25 @@ class BeOrgParser:
 
         return tasks
 
-    def write_file(self, filepath: str, tasks: List[Task]) -> None:
-        """Write tasks to BeOrg format, sorted by timestamp (latest first)."""
-        # Sort tasks by timestamp in descending order (latest first)
-        sorted_tasks = sorted(tasks, key=lambda t: t.timestamp, reverse=True)
+    @override
+    def _format_tasks(self, tasks: List[Task]) -> List[str]:
+        """Formats tasks into BeOrg format."""
         lines = []
-        for task in sorted_tasks:
+        for task in tasks:
             status = "DONE" if task.is_completed else "TODO"
             lines.append(f"* {status} {task.content}")
             timestamp_str = task.timestamp.strftime('%Y-%m-%d %a %H:%M')
             lines.append(f"[{timestamp_str}]")
-
-        with open(filepath, 'w', encoding='utf-8') as f:
-            f.write('\n'.join(lines))
-            if lines:  # Add final newline if there's content
-                f.write('\n')
+        return lines
 
 
-class JournellyParser:
+class JournellyParser(BaseParser):
     """Parser for Journelly.org file format."""
 
-    def __init__(self, verbose: bool = False):
-        self.verbose = verbose
-
-    def parse_file(self, filepath: str) -> List[Task]:
-        """Parse Journelly file and return list of tasks."""
+    @override
+    def _parse_tasks(self, content: str) -> List[Task]:
+        """Parse tasks from Journelly file content."""
         tasks = []
-        try:
-            with open(filepath, 'r', encoding='utf-8') as f:
-                content = f.read()
-        except FileNotFoundError:
-            if self.verbose:
-                print(f"Journelly file not found: {filepath}, empty")
-            return tasks
-
         lines = content.strip().split('\n')
         i = 0
 
@@ -146,21 +161,16 @@ class JournellyParser:
 
         return tasks
 
-    def write_file(self, filepath: str, tasks: List[Task]) -> None:
-        """Write tasks to Journelly format, sorted by timestamp."""
-        # Sort tasks by timestamp in descending order (latest first)
-        sorted_tasks = sorted(tasks, key=lambda t: t.timestamp, reverse=True)
+    @override
+    def _format_tasks(self, tasks: List[Task]) -> List[str]:
+        """Formats tasks into Journelly format."""
         lines = []
-        for task in sorted_tasks:
+        for task in tasks:
             timestamp_str = task.timestamp.strftime('%Y-%m-%d %a %H:%M')
             lines.append(f"* [{timestamp_str}] @ -")
             status = "[X]" if task.is_completed else "[ ]"
             lines.append(f"- {status} {task.content}")
-
-        with open(filepath, 'w', encoding='utf-8') as f:
-            f.write('\n'.join(lines))
-            if lines:  # Add final newline if there's content
-                f.write('\n')
+        return lines
 
 
 class TaskSynchronizer:

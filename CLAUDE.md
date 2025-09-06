@@ -52,6 +52,14 @@ The repository contains a functional Python script `beorg2journelly.py` for sync
 
 ## Implentation Architecture
 
+### Code Structure
+The script is structured into several classes:
+- `Task`: A `NamedTuple` representing a TODO task.
+- `BaseParser`: An abstract base class for file parsers, handling common logic like file I/O and task sorting.
+- `BeOrgParser` and `JournellyParser`: Concrete implementations of `BaseParser` that handle the specific file formats for BeOrg and Journelly, respectively.
+- `TaskSynchronizer`: A class that contains the business logic for synchronizing tasks between the two sources.
+- A `main` function handles command-line argument parsing and orchestrates the parsing, synchronization, and writing processes.
+
 ### Tech Stack
 - **Python** version 3.12 or later,
 - no external library dependencies
@@ -74,9 +82,9 @@ The repository contains a functional Python script `beorg2journelly.py` for sync
 
 ## Improvements
 ### [X] the TODO entries in both the inbox.org and Journelly.org should be sorted by date, with the latest date first
+### [X] Refactored parsers to reduce code duplication by introducing a `BaseParser` abstract class.
 
 ### Future Ideas
 - Add unit tests for parsers and synchronizer.
 - Improve error handling for malformed file entries.
 - Add a `--dry-run` option to show changes without modifying files.
-- Further refactor parsers and synchronizer to reduce code duplication.
