@@ -128,23 +128,14 @@ class JournellyParser:
                     # Look for task on next line
                     if i + 1 < len(lines):
                         next_line = lines[i + 1].strip()
-                        if next_line.startswith('- [ ] '):
-                            # Incomplete task
-                            task_content = next_line[6:]  # Remove "- [ ] "
-                            task = Task(task_content, timestamp, False)
+                        if next_line.startswith(('- [ ] ', '- [X] ')):
+                            is_completed = next_line.startswith('- [X] ')
+                            task_content = next_line[6:]
+                            task = Task(task_content, timestamp, is_completed)
                             tasks.append(task)
                             if self.verbose:
-                                msg = (f"Parsed Journelly task: [TODO] "
-                                       f"{task_content} at {timestamp_str}")
-                                print(msg)
-                            i += 1  # Skip task line
-                        elif next_line.startswith('- [X] '):
-                            # Completed task
-                            task_content = next_line[6:]  # Remove "- [X] "
-                            task = Task(task_content, timestamp, True)
-                            tasks.append(task)
-                            if self.verbose:
-                                msg = (f"Parsed Journelly task: [DONE] "
+                                status = "DONE" if is_completed else "TODO"
+                                msg = (f"Parsed Journelly task: [{status}] "
                                        f"{task_content} at {timestamp_str}")
                                 print(msg)
                             i += 1  # Skip task line
@@ -232,40 +223,27 @@ class TaskSynchronizer:
                                f"{content}")
                         print(msg)
 
-            elif beorg_task:
-                # Task exists only in BeOrg
+            elif beorg_task or journelly_task:
+                # Task exists in one file only
+                single_task = beorg_task or journelly_task
+                source = "BeOrg" if beorg_task else "Journelly"
                 if self.verbose:
-                    print(f"Task exists only in BeOrg: {content}")
+                    print(f"Task exists only in {source}: {content}")
 
-                if beorg_task.is_completed:
-                    # Remove completed task
+                if single_task.is_completed:
+                    # Remove completed task by not adding it to final lists
                     if self.verbose:
-                        print(f"Removing completed task from BeOrg: {content}")
-                else:
-                    # Add incomplete task to both files
-                    final_beorg_tasks.append(beorg_task)
-                    final_journelly_tasks.append(beorg_task)
-                    if self.verbose:
-                        msg = f"Adding incomplete task to Journelly: {content}"
-                        print(msg)
-
-            elif journelly_task:
-                # Task exists only in Journelly
-                if self.verbose:
-                    print(f"Task exists only in Journelly: {content}")
-
-                if journelly_task.is_completed:
-                    # Remove completed task
-                    if self.verbose:
-                        msg = (f"Removing completed task from Journelly: "
+                        msg = (f"Removing completed task from {source}: "
                                f"{content}")
                         print(msg)
                 else:
-                    # Add incomplete task to both files
-                    final_beorg_tasks.append(journelly_task)
-                    final_journelly_tasks.append(journelly_task)
+                    # Add incomplete task to both files' final lists
+                    final_beorg_tasks.append(single_task)
+                    final_journelly_tasks.append(single_task)
                     if self.verbose:
-                        msg = f"Adding incomplete task to BeOrg: {content}"
+                        dest = "Journelly" if source == "BeOrg" else "BeOrg"
+                        msg = (f"Adding incomplete task to {dest}: "
+                               f"{content}")
                         print(msg)
 
         return final_beorg_tasks, final_journelly_tasks

@@ -14,11 +14,11 @@ The script ensures that TODO lists remain consistent between the two application
 
 ## Repository Status
 
-This is currently an empty repository with only git initialization. The project structure, build system, and development commands are yet to be established.
+The repository contains a functional Python script `beorg2journelly.py` for synchronizing tasks.
 
 ## Current State
 
-- **Status**: Planning
+- **Status**: Active
 - **Main Script**: beorg2journelly.py
 
 ## File format example for BeOrg inbox.org
@@ -74,3 +74,9 @@ This is currently an empty repository with only git initialization. The project 
 
 ## Improvements
 ### [X] the TODO entries in both the inbox.org and Journelly.org should be sorted by date, with the latest date first
+
+### Future Ideas
+- Add unit tests for parsers and synchronizer.
+- Improve error handling for malformed file entries.
+- Add a `--dry-run` option to show changes without modifying files.
+- Further refactor parsers and synchronizer to reduce code duplication.
