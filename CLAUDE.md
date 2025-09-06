@@ -92,4 +92,3 @@ For parsing, the script adopts a lenient "best effort" approach. When it encount
 ### [X] Improved error handling for malformed file entries and file I/O operations.
 
 ### Future Ideas
-- Add a `--dry-run` option to show changes without modifying files.
