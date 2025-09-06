@@ -24,11 +24,22 @@ class Task(NamedTuple):
     is_completed: bool
 
 
+class SyncError(Exception):
+    """Base exception for synchronization errors."""
+    pass
+
+
+class FileIOError(SyncError):
+    """Exception for file input/output errors."""
+    pass
+
+
 class BaseParser(abc.ABC):
     """Abstract base class for task parsers."""
 
     def __init__(self, verbose: bool = False):
         self.verbose = verbose
+        self.warnings: List[str] = []
 
     def parse_file(self, filepath: str) -> List[Task]:
         """Read a file and parse tasks from its content."""
@@ -41,6 +52,8 @@ class BaseParser(abc.ABC):
                 print(f"{parser_name} file not found: {filepath}, "
                       f"treating as empty")
             return []
+        except IOError as e:
+            raise FileIOError(f"Error reading file {filepath}: {e}") from e
         return self._parse_tasks(content)
 
     @abc.abstractmethod
@@ -52,10 +65,13 @@ class BaseParser(abc.ABC):
         """Format and write tasks to a file, sorted by timestamp."""
         sorted_tasks = sorted(tasks, key=lambda t: t.timestamp, reverse=True)
         lines = self._format_tasks(sorted_tasks)
-        with open(filepath, 'w', encoding='utf-8') as f:
-            f.write('\n'.join(lines))
-            if lines:
-                f.write('\n')
+        try:
+            with open(filepath, 'w', encoding='utf-8') as f:
+                f.write('\n'.join(lines))
+                if lines:
+                    f.write('\n')
+        except IOError as e:
+            raise FileIOError(f"Error writing to file {filepath}: {e}") from e
 
     @abc.abstractmethod
     def _format_tasks(self, tasks: List[Task]) -> List[str]:
@@ -100,8 +116,17 @@ class BeOrgParser(BaseParser):
                                 print(msg)
                             i += 1  # Skip timestamp line
                         except ValueError:
-                            if self.verbose:
-                                print(f"Invalid timestamp: {timestamp_str}")
+                            msg = (f"Skipping entry in BeOrg file due to invalid "
+                                   f"timestamp: '{timestamp_str}'")
+                            self.warnings.append(msg)
+                    else:
+                        msg = (f"Skipping malformed BeOrg task (timestamp "
+                               f"missing or wrong format): '{line}'")
+                        self.warnings.append(msg)
+                else:
+                    msg = (f"Skipping BeOrg task at end of file (timestamp "
+                           f"missing): '{line}'")
+                    self.warnings.append(msg)
             i += 1
 
         return tasks
@@ -154,9 +179,18 @@ class JournellyParser(BaseParser):
                                        f"{task_content} at {timestamp_str}")
                                 print(msg)
                             i += 1  # Skip task line
+                        else:
+                            msg = (f"Skipping malformed Journelly entry (task line "
+                                   f"missing after timestamp): '{line}'")
+                            self.warnings.append(msg)
+                    else:
+                        msg = (f"Skipping malformed Journelly entry (task line "
+                               f"missing at end of file): '{line}'")
+                        self.warnings.append(msg)
                 except ValueError:
-                    if self.verbose:
-                        print(f"Invalid timestamp format: {timestamp_str}")
+                    msg = (f"Skipping entry in Journelly file due to "
+                           f"invalid timestamp: '{timestamp_str}'")
+                    self.warnings.append(msg)
             i += 1
 
         return tasks
@@ -279,7 +313,6 @@ Examples:
 
     args = parser.parse_args()
 
-    # Check if file paths were provided
     if not args.beorg_file or not args.journelly_file:
         parser.error("Both BeOrg and Journelly file paths are required")
         return 1
@@ -297,6 +330,13 @@ Examples:
 
         beorg_tasks = beorg_parser.parse_file(args.beorg_file)
         journelly_tasks = journelly_parser.parse_file(args.journelly_file)
+
+        # Report any non-fatal parsing warnings
+        all_warnings = beorg_parser.warnings + journelly_parser.warnings
+        if all_warnings:
+            print("\nWarnings encountered during parsing:", file=sys.stderr)
+            for warning in all_warnings:
+                print(f"- {warning}", file=sys.stderr)
 
         if args.verbose:
             print(f"\nParsed {len(beorg_tasks)} tasks from BeOrg file")
@@ -320,8 +360,11 @@ Examples:
         else:
             print("Synchronization complete")
 
+    except SyncError as e:
+        print(f"Error: {e}", file=sys.stderr)
+        return 1
     except Exception as e:
-        print(f"Error during synchronization: {e}", file=sys.stderr)
+        print(f"An unexpected error occurred: {e}", file=sys.stderr)
         return 1
 
     return 0

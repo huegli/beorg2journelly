@@ -60,6 +60,11 @@ The script is structured into several classes:
 - `TaskSynchronizer`: A class that contains the business logic for synchronizing tasks between the two sources.
 - A `main` function handles command-line argument parsing and orchestrates the parsing, synchronization, and writing processes.
 
+### Error Handling
+The script uses a custom exception, `FileIOError`, to handle file I/O issues gracefully (e.g., permission errors). This provides clearer feedback than a generic crash.
+
+For parsing, the script adopts a lenient "best effort" approach. When it encounters malformed entries or invalid timestamps, it logs them as warnings and skips them, continuing to process the rest of the file. These warnings are displayed to the user after parsing is complete, ensuring that minor formatting mistakes do not halt the entire synchronization process.
+
 ### Tech Stack
 - **Python** version 3.12 or later,
 - no external library dependencies
@@ -84,7 +89,7 @@ The script is structured into several classes:
 ### [X] the TODO entries in both the inbox.org and Journelly.org should be sorted by date, with the latest date first
 ### [X] Refactored parsers to reduce code duplication by introducing a `BaseParser` abstract class.
 ### [X] Add unit tests for parsers and synchronizer.
+### [X] Improved error handling for malformed file entries and file I/O operations.
 
 ### Future Ideas
-- Improve error handling for malformed file entries.
 - Add a `--dry-run` option to show changes without modifying files.
