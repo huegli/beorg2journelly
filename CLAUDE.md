@@ -83,8 +83,8 @@ The script is structured into several classes:
 ## Improvements
 ### [X] the TODO entries in both the inbox.org and Journelly.org should be sorted by date, with the latest date first
 ### [X] Refactored parsers to reduce code duplication by introducing a `BaseParser` abstract class.
+### [X] Add unit tests for parsers and synchronizer.
 
 ### Future Ideas
-- Add unit tests for parsers and synchronizer.
 - Improve error handling for malformed file entries.
 - Add a `--dry-run` option to show changes without modifying files.
