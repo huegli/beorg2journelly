@@ -13,7 +13,7 @@ import argparse
 import re
 import sys
 from datetime import datetime
-from typing import Dict, List, NamedTuple, Set, Tuple, override
+from typing import Dict, List, NamedTuple, Optional, Set, Tuple, override
 import abc
 
 
@@ -93,44 +93,53 @@ class BeOrgParser(BaseParser):
             line = lines[i].strip()
 
             # Look for level 1 headers starting with TODO or DONE
-            # Break the search for level 1 header starting with TODO or DONE including the exception handling into a seperate funtion AI!
-            if line.startswith('* TODO ') or line.startswith('* DONE '):
-                is_completed = line.startswith('* DONE ')
-                task_content = line[7:]  # Remove "* TODO " or "* DONE "
-
-                # Look for timestamp on next line
-                if i + 1 < len(lines):
-                    next_line = lines[i + 1].strip()
-                    pattern = r'\[(\d{4}-\d{2}-\d{2} \w{3} \d{2}:\d{2})\]'
-                    timestamp_match = re.match(pattern, next_line)
-                    if timestamp_match:
-                        timestamp_str = timestamp_match.group(1)
-                        try:
-                            timestamp = datetime.strptime(
-                                timestamp_str, '%Y-%m-%d %a %H:%M')
-                            task = Task(task_content, timestamp, is_completed)
-                            tasks.append(task)
-                            if self.verbose:
-                                status = "DONE" if is_completed else "TODO"
-                                msg = (f"Parsed BeOrg task: [{status}] "
-                                       f"{task_content} at {timestamp_str}")
-                                print(msg)
-                            i += 1  # Skip timestamp line
-                        except ValueError:
-                            msg = (f"Skipping entry in BeOrg file due to invalid "
-                                   f"timestamp: '{timestamp_str}'")
-                            self.warnings.append(msg)
-                    else:
-                        msg = (f"Skipping malformed BeOrg task (timestamp "
-                               f"missing or wrong format): '{line}'")
-                        self.warnings.append(msg)
-                else:
-                    msg = (f"Skipping BeOrg task at end of file (timestamp "
-                           f"missing): '{line}'")
-                    self.warnings.append(msg)
-            i += 1
+            task, lines_consumed = self._parse_task_from_line(line, lines, i)
+            if task:
+                tasks.append(task)
+            i += 1 + lines_consumed
 
         return tasks
+
+    def _parse_task_from_line(self, line: str, lines: List[str], i: int
+                              ) -> Tuple[Optional[Task], int]:
+        """Parses a single task starting from a given line if it's a header."""
+        if not (line.startswith('* TODO ') or line.startswith('* DONE ')):
+            return None, 0
+
+        is_completed = line.startswith('* DONE ')
+        task_content = line[7:]  # Remove "* TODO " or "* DONE "
+
+        # Look for timestamp on next line
+        if i + 1 < len(lines):
+            next_line = lines[i + 1].strip()
+            pattern = r'\[(\d{4}-\d{2}-\d{2} \w{3} \d{2}:\d{2})\]'
+            timestamp_match = re.match(pattern, next_line)
+            if timestamp_match:
+                timestamp_str = timestamp_match.group(1)
+                try:
+                    timestamp = datetime.strptime(
+                        timestamp_str, '%Y-%m-%d %a %H:%M')
+                    task = Task(task_content, timestamp, is_completed)
+                    if self.verbose:
+                        status = "DONE" if is_completed else "TODO"
+                        msg = (f"Parsed BeOrg task: [{status}] "
+                               f"{task_content} at {timestamp_str}")
+                        print(msg)
+                    return task, 1  # Consumed 1 extra line for timestamp
+                except ValueError:
+                    msg = (f"Skipping entry in BeOrg file due to invalid "
+                           f"timestamp: '{timestamp_str}'")
+                    self.warnings.append(msg)
+            else:
+                msg = (f"Skipping malformed BeOrg task (timestamp "
+                       f"missing or wrong format): '{line}'")
+                self.warnings.append(msg)
+        else:
+            msg = (f"Skipping BeOrg task at end of file (timestamp "
+                   f"missing): '{line}'")
+            self.warnings.append(msg)
+
+        return None, 0
 
     @override
     def _format_tasks(self, tasks: List[Task]) -> List[str]:
