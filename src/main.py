@@ -125,6 +125,7 @@ class BeOrgParser(BaseParser):
                 try:
                     timestamp = datetime.strptime(
                         timestamp_str, '%Y-%m-%d %a %H:%M')
+                    # Handle task creation in a separate function AI!
                     task = Task(task_content, timestamp, is_completed)
                     if self.verbose:
                         status = "DONE" if is_completed else "TODO"
@@ -198,6 +199,7 @@ class JournellyParser(BaseParser):
                 if next_line.startswith(('- [ ] ', '- [X] ')):
                     is_completed = next_line.startswith('- [X] ')
                     task_content = next_line[6:]
+                    # Handle task creation in a separate function AI! 
                     task = Task(task_content, timestamp, is_completed)
                     if self.verbose:
                         status = "DONE" if is_completed else "TODO"
