@@ -4,7 +4,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-This repository is for a tool for converting TODO's between a BeOrg (Emacs org-mode iOS app) inbox org file and a corresponding org file used by the Journelly iOS app
+This repository contains `beorg2journelly.py`, a command-line script that performs a two-way synchronization of TODO tasks between a BeOrg `inbox.org` file and a `Journelly.org` file.
+
+The script ensures that TODO lists remain consistent between the two applications by following these rules:
+- Incomplete tasks appearing in only one file are added to the other.
+- Completed tasks are removed from both files.
+- Tasks are matched by exact text content.
+- When the same task exists in both files, the earlier timestamp is preserved.
 
 ## Repository Status
 
