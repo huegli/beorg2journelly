@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.huegli.beorg2journelly</string>
+  <key>WorkingDirectory</key>
+  <string>/Users/nikolai/Scripts/beorg2journelly</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/Users/nikolai/Scripts/beorg2journelly/run.sh</string>
+  </array>
+  <key>StartInterval</key>
+  <integer>1200</integer>
+  <key>StandardOutPath</key>
+  <string>/tmp/com.huegli.beorg2journelly.out</string>
+  <key>StandardErrorPath</key>
+  <string>/tmp/com.huegli.beorg2journelly.err</string>
+</dict>
+</plist>
