@@ -109,7 +109,7 @@ class BeOrgParser(BaseParser):
         is_completed = line.startswith('* DONE ')
         task_content = line[7:]  # Remove "* TODO " or "* DONE "
 
-        # Look for timestamp on next line
+        # Look for timestamp on next line, refactor this (including exception handling) into a separate function AI!
         if i + 1 < len(lines):
             next_line = lines[i + 1].strip()
             pattern = r'\[(\d{4}-\d{2}-\d{2} \w{3} \d{2}:\d{2})\]'
@@ -166,8 +166,8 @@ class JournellyParser(BaseParser):
         while i < len(lines):
             line = lines[i].strip()
 
-            # Look for level 1 headers with timestamp
-            pattern = r'\* \[(\d{4}-\d{2}-\d{2} \w{3} \d{2}:\d{2})\] @ -'
+            # Look for level 1 headers with timestamp, refactor this (including exception handling) into a separate function AI!
+            Pattern = r'\* \[(\d{4}-\d{2}-\d{2} \w{3} \d{2}:\d{2})\] @ -'
             timestamp_match = re.match(pattern, line)
             if timestamp_match:
                 timestamp_str = timestamp_match.group(1)
@@ -175,7 +175,7 @@ class JournellyParser(BaseParser):
                     timestamp = datetime.strptime(
                         timestamp_str, '%Y-%m-%d %a %H:%M')
 
-                    # Look for task on next line
+                    # Look for task on next line, refactor this (including exception handling) into a separate function AI!
                     if i + 1 < len(lines):
                         next_line = lines[i + 1].strip()
                         if next_line.startswith(('- [ ] ', '- [X] ')):
