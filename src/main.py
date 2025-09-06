@@ -41,6 +41,18 @@ class BaseParser(abc.ABC):
         self.verbose = verbose
         self.warnings: List[str] = []
 
+    def _create_task_and_log(self, task_content: str, timestamp: datetime,
+                             is_completed: bool, timestamp_str: str,
+                             parser_name: str) -> Task:
+        """Creates a Task object and logs it if verbose mode is on."""
+        task = Task(task_content, timestamp, is_completed)
+        if self.verbose:
+            status = "DONE" if is_completed else "TODO"
+            msg = (f"Parsed {parser_name} task: [{status}] "
+                   f"{task_content} at {timestamp_str}")
+            print(msg)
+        return task
+
     def parse_file(self, filepath: str) -> List[Task]:
         """Read a file and parse tasks from its content."""
         try:
@@ -125,13 +137,9 @@ class BeOrgParser(BaseParser):
                 try:
                     timestamp = datetime.strptime(
                         timestamp_str, '%Y-%m-%d %a %H:%M')
-                    # Handle task creation in a separate function AI!
-                    task = Task(task_content, timestamp, is_completed)
-                    if self.verbose:
-                        status = "DONE" if is_completed else "TODO"
-                        msg = (f"Parsed BeOrg task: [{status}] "
-                               f"{task_content} at {timestamp_str}")
-                        print(msg)
+                    task = self._create_task_and_log(
+                        task_content, timestamp, is_completed, timestamp_str,
+                        "BeOrg")
                     return task, 1  # Consumed 1 extra line for timestamp
                 except ValueError:
                     msg = (f"Skipping entry in BeOrg file due to invalid "
@@ -199,13 +207,9 @@ class JournellyParser(BaseParser):
                 if next_line.startswith(('- [ ] ', '- [X] ')):
                     is_completed = next_line.startswith('- [X] ')
                     task_content = next_line[6:]
-                    # Handle task creation in a separate function AI! 
-                    task = Task(task_content, timestamp, is_completed)
-                    if self.verbose:
-                        status = "DONE" if is_completed else "TODO"
-                        msg = (f"Parsed Journelly task: [{status}] "
-                               f"{task_content} at {timestamp_str}")
-                        print(msg)
+                    task = self._create_task_and_log(
+                        task_content, timestamp, is_completed, timestamp_str,
+                        "Journelly")
                     return task, 1  # Consumed 1 extra line for timestamp
                 else:
                     msg = (f"Skipping malformed Journelly entry (task line "
