@@ -269,59 +269,75 @@ class TaskSynchronizer:
             journelly_task = journelly_by_content.get(content)
 
             if beorg_task and journelly_task:
-                # Task exists in both files, refactor this into a separate function, AI!
-                if self.verbose:
-                    print(f"Task exists in both files: {content}")
-
-                # Use earlier timestamp (conflict resolution)
-                earlier_timestamp = min(beorg_task.timestamp,
-                                        journelly_task.timestamp)
-
-                # Determine completion status
-                is_completed = (
-                    beorg_task.is_completed or journelly_task.is_completed)
-
-                merged_task = Task(content, earlier_timestamp, is_completed)
-
-                if is_completed:
-                    # Remove completed tasks from both files
-                    if self.verbose:
-                        msg = (f"Removing completed task from both files: "
-                               f"{content}")
-                        print(msg)
-                else:
-                    # Keep incomplete tasks in both files
-                    final_beorg_tasks.append(merged_task)
-                    final_journelly_tasks.append(merged_task)
-                    if self.verbose:
-                        msg = (f"Keeping incomplete task in both files: "
-                               f"{content}")
-                        print(msg)
-
+                self._handle_task_in_both_files(
+                    beorg_task, journelly_task, final_beorg_tasks,
+                    final_journelly_tasks)
             elif beorg_task or journelly_task:
-                # Task exists in one file only, refactor this into a separate function AI!
-                single_task = beorg_task or journelly_task
-                source = "BeOrg" if beorg_task else "Journelly"
-                if self.verbose:
-                    print(f"Task exists only in {source}: {content}")
-
-                if single_task.is_completed:
-                    # Remove completed task by not adding it to final lists
-                    if self.verbose:
-                        msg = (f"Removing completed task from {source}: "
-                               f"{content}")
-                        print(msg)
-                else:
-                    # Add incomplete task to both files' final lists
-                    final_beorg_tasks.append(single_task)
-                    final_journelly_tasks.append(single_task)
-                    if self.verbose:
-                        dest = "Journelly" if source == "BeOrg" else "BeOrg"
-                        msg = (f"Adding incomplete task to {dest}: "
-                               f"{content}")
-                        print(msg)
+                self._handle_task_in_one_file(
+                    beorg_task, journelly_task, final_beorg_tasks,
+                    final_journelly_tasks)
 
         return final_beorg_tasks, final_journelly_tasks
+
+    def _handle_task_in_both_files(self, beorg_task: Task, journelly_task: Task,
+                                   final_beorg_tasks: List[Task],
+                                   final_journelly_tasks: List[Task]):
+        """Handles synchronization for a task present in both files."""
+        content = beorg_task.content
+        if self.verbose:
+            print(f"Task exists in both files: {content}")
+
+        # Use earlier timestamp (conflict resolution)
+        earlier_timestamp = min(beorg_task.timestamp,
+                                journelly_task.timestamp)
+
+        # Determine completion status
+        is_completed = (
+            beorg_task.is_completed or journelly_task.is_completed)
+
+        merged_task = Task(content, earlier_timestamp, is_completed)
+
+        if is_completed:
+            # Remove completed tasks from both files
+            if self.verbose:
+                msg = (f"Removing completed task from both files: "
+                       f"{content}")
+                print(msg)
+        else:
+            # Keep incomplete tasks in both files
+            final_beorg_tasks.append(merged_task)
+            final_journelly_tasks.append(merged_task)
+            if self.verbose:
+                msg = (f"Keeping incomplete task in both files: "
+                       f"{content}")
+                print(msg)
+
+    def _handle_task_in_one_file(self, beorg_task: Optional[Task],
+                                 journelly_task: Optional[Task],
+                                 final_beorg_tasks: List[Task],
+                                 final_journelly_tasks: List[Task]):
+        """Handles synchronization for a task present in only one file."""
+        single_task = beorg_task or journelly_task
+        source = "BeOrg" if beorg_task else "Journelly"
+        content = single_task.content
+        if self.verbose:
+            print(f"Task exists only in {source}: {content}")
+
+        if single_task.is_completed:
+            # Remove completed task by not adding it to final lists
+            if self.verbose:
+                msg = (f"Removing completed task from {source}: "
+                       f"{content}")
+                print(msg)
+        else:
+            # Add incomplete task to both files' final lists
+            final_beorg_tasks.append(single_task)
+            final_journelly_tasks.append(single_task)
+            if self.verbose:
+                dest = "Journelly" if source == "BeOrg" else "BeOrg"
+                msg = (f"Adding incomplete task to {dest}: "
+                       f"{content}")
+                print(msg)
 
 
 def main():
