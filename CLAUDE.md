@@ -66,3 +66,5 @@ This is currently an empty repository with only git initialization. The project 
 - If the file is lint clean, create random test data as described and verify the correctness of the beorg2journelly.py synchronization
 - If the test synchronization passes, check in the file(s), adding both git comments and an entry into a CHANGELOG.md file
 
+## Improvements
+### [X] the TODO entries in both the inbox.org and Journelly.org should be sorted by date, with the latest date first

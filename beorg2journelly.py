@@ -1,8 +1,8 @@
-#!/usr/bin/env python3
 """
-beorg2journelly.py - 2-way synchronization tool between BeOrg and Journelly org files
+beorg2journelly.py - 2-way sync tool between BeOrg and Journelly files
 
-This script synchronizes TODO tasks between a BeOrg inbox.org file and a Journelly.org file.
+This script synchronizes TODO tasks between a BeOrg inbox.org file and
+a Journelly.org file.
 - Incomplete tasks appearing in only one file are added to the other
 - Completed tasks are removed from both files
 - Tasks are matched by exact text content
@@ -17,7 +17,7 @@ from typing import Dict, List, NamedTuple, Set, Tuple
 
 
 class Task(NamedTuple):
-    """Represents a TODO task with its content, timestamp, and completion status."""
+    """Represents a TODO task with content, timestamp, and completion."""
     content: str
     timestamp: datetime
     is_completed: bool
@@ -71,15 +71,17 @@ class BeOrgParser:
                             i += 1  # Skip timestamp line
                         except ValueError:
                             if self.verbose:
-                                print(f"Invalid timestamp format: {timestamp_str}")
+                                print(f"Invalid timestamp: {timestamp_str}")
             i += 1
 
         return tasks
 
     def write_file(self, filepath: str, tasks: List[Task]) -> None:
-        """Write tasks to BeOrg file format."""
+        """Write tasks to BeOrg format, sorted by timestamp (latest first)."""
+        # Sort tasks by timestamp in descending order (latest first)
+        sorted_tasks = sorted(tasks, key=lambda t: t.timestamp, reverse=True)
         lines = []
-        for task in tasks:
+        for task in sorted_tasks:
             status = "DONE" if task.is_completed else "TODO"
             lines.append(f"* {status} {task.content}")
             timestamp_str = task.timestamp.strftime('%Y-%m-%d %a %H:%M')
@@ -105,7 +107,7 @@ class JournellyParser:
                 content = f.read()
         except FileNotFoundError:
             if self.verbose:
-                print(f"Journelly file not found: {filepath}, treating as empty")
+                print(f"Journelly file not found: {filepath}, empty")
             return tasks
 
         lines = content.strip().split('\n')
@@ -154,9 +156,11 @@ class JournellyParser:
         return tasks
 
     def write_file(self, filepath: str, tasks: List[Task]) -> None:
-        """Write tasks to Journelly file format."""
+        """Write tasks to Journelly format, sorted by timestamp."""
+        # Sort tasks by timestamp in descending order (latest first)
+        sorted_tasks = sorted(tasks, key=lambda t: t.timestamp, reverse=True)
         lines = []
-        for task in tasks:
+        for task in sorted_tasks:
             timestamp_str = task.timestamp.strftime('%Y-%m-%d %a %H:%M')
             lines.append(f"* [{timestamp_str}] @ -")
             status = "[X]" if task.is_completed else "[ ]"
@@ -175,10 +179,11 @@ class TaskSynchronizer:
         self.verbose = verbose
 
     def synchronize(self, beorg_tasks: List[Task],
-                    journelly_tasks: List[Task]) -> Tuple[List[Task], List[Task]]:
+                    journelly_tasks: List[Task]) -> Tuple[
+                        List[Task], List[Task]]:
         """
         Synchronize tasks between BeOrg and Journelly formats.
-        Returns tuple of (synchronized_beorg_tasks, synchronized_journelly_tasks).
+        Returns tuple of (beorg_tasks, journelly_tasks).
         """
         # Create lookup dictionaries by task content
         beorg_by_content: Dict[str, Task] = {
@@ -215,14 +220,16 @@ class TaskSynchronizer:
                 if is_completed:
                     # Remove completed tasks from both files
                     if self.verbose:
-                        msg = f"Removing completed task from both files: {content}"
+                        msg = (f"Removing completed task from both files: "
+                               f"{content}")
                         print(msg)
                 else:
                     # Keep incomplete tasks in both files
                     final_beorg_tasks.append(merged_task)
                     final_journelly_tasks.append(merged_task)
                     if self.verbose:
-                        msg = f"Keeping incomplete task in both files: {content}"
+                        msg = (f"Keeping incomplete task in both files: "
+                               f"{content}")
                         print(msg)
 
             elif beorg_task:
@@ -239,7 +246,8 @@ class TaskSynchronizer:
                     final_beorg_tasks.append(beorg_task)
                     final_journelly_tasks.append(beorg_task)
                     if self.verbose:
-                        print(f"Adding incomplete task to Journelly: {content}")
+                        msg = f"Adding incomplete task to Journelly: {content}"
+                        print(msg)
 
             elif journelly_task:
                 # Task exists only in Journelly
@@ -249,13 +257,16 @@ class TaskSynchronizer:
                 if journelly_task.is_completed:
                     # Remove completed task
                     if self.verbose:
-                        print(f"Removing completed task from Journelly: {content}")
+                        msg = (f"Removing completed task from Journelly: "
+                               f"{content}")
+                        print(msg)
                 else:
                     # Add incomplete task to both files
                     final_beorg_tasks.append(journelly_task)
                     final_journelly_tasks.append(journelly_task)
                     if self.verbose:
-                        print(f"Adding incomplete task to BeOrg: {content}")
+                        msg = f"Adding incomplete task to BeOrg: {content}"
+                        print(msg)
 
         return final_beorg_tasks, final_journelly_tasks
 
@@ -307,7 +318,8 @@ Examples:
 
         # Synchronize tasks
         synchronizer = TaskSynchronizer(args.verbose)
-        synced_beorg, synced_journelly = synchronizer.synchronize(beorg_tasks, journelly_tasks)
+        synced_beorg, synced_journelly = synchronizer.synchronize(
+            beorg_tasks, journelly_tasks)
 
         # Write synchronized tasks back to files
         beorg_parser.write_file(args.beorg_file, synced_beorg)
