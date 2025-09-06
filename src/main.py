@@ -109,7 +109,13 @@ class BeOrgParser(BaseParser):
         is_completed = line.startswith('* DONE ')
         task_content = line[7:]  # Remove "* TODO " or "* DONE "
 
-        # Look for timestamp on next line, refactor this (including exception handling) into a separate function AI!
+        return self._parse_beorg_timestamp_and_create_task(
+            task_content, is_completed, lines, i, line)
+
+    def _parse_beorg_timestamp_and_create_task(
+            self, task_content: str, is_completed: bool, lines: List[str],
+            i: int, header_line: str) -> Tuple[Optional[Task], int]:
+        """Parses timestamp for a BeOrg task and returns the Task object."""
         if i + 1 < len(lines):
             next_line = lines[i + 1].strip()
             pattern = r'\[(\d{4}-\d{2}-\d{2} \w{3} \d{2}:\d{2})\]'
@@ -132,11 +138,11 @@ class BeOrgParser(BaseParser):
                     self.warnings.append(msg)
             else:
                 msg = (f"Skipping malformed BeOrg task (timestamp "
-                       f"missing or wrong format): '{line}'")
+                       f"missing or wrong format): '{header_line}'")
                 self.warnings.append(msg)
         else:
             msg = (f"Skipping BeOrg task at end of file (timestamp "
-                   f"missing): '{line}'")
+                   f"missing): '{header_line}'")
             self.warnings.append(msg)
 
         return None, 0
@@ -166,44 +172,53 @@ class JournellyParser(BaseParser):
         while i < len(lines):
             line = lines[i].strip()
 
-            # Look for level 1 headers with timestamp, refactor this (including exception handling) into a separate function AI!
-            Pattern = r'\* \[(\d{4}-\d{2}-\d{2} \w{3} \d{2}:\d{2})\] @ -'
-            timestamp_match = re.match(pattern, line)
-            if timestamp_match:
-                timestamp_str = timestamp_match.group(1)
-                try:
-                    timestamp = datetime.strptime(
-                        timestamp_str, '%Y-%m-%d %a %H:%M')
-
-                    # Look for task on next line, refactor this (including exception handling) into a separate function AI!
-                    if i + 1 < len(lines):
-                        next_line = lines[i + 1].strip()
-                        if next_line.startswith(('- [ ] ', '- [X] ')):
-                            is_completed = next_line.startswith('- [X] ')
-                            task_content = next_line[6:]
-                            task = Task(task_content, timestamp, is_completed)
-                            tasks.append(task)
-                            if self.verbose:
-                                status = "DONE" if is_completed else "TODO"
-                                msg = (f"Parsed Journelly task: [{status}] "
-                                       f"{task_content} at {timestamp_str}")
-                                print(msg)
-                            i += 1  # Skip task line
-                        else:
-                            msg = (f"Skipping malformed Journelly entry (task line "
-                                   f"missing after timestamp): '{line}'")
-                            self.warnings.append(msg)
-                    else:
-                        msg = (f"Skipping malformed Journelly entry (task line "
-                               f"missing at end of file): '{line}'")
-                        self.warnings.append(msg)
-                except ValueError:
-                    msg = (f"Skipping entry in Journelly file due to "
-                           f"invalid timestamp: '{timestamp_str}'")
-                    self.warnings.append(msg)
-            i += 1
+            task, lines_consumed = self._parse_journelly_task_from_line(
+                line, lines, i)
+            if task:
+                tasks.append(task)
+            i += 1 + lines_consumed
 
         return tasks
+
+    def _parse_journelly_task_from_line(self, line: str, lines: List[str],
+                                        i: int) -> Tuple[Optional[Task], int]:
+        """Parses a Journelly task if the line is a timestamp header."""
+        pattern = r'\* \[(\d{4}-\d{2}-\d{2} \w{3} \d{2}:\d{2})\] @ -'
+        timestamp_match = re.match(pattern, line)
+        if not timestamp_match:
+            return None, 0
+
+        timestamp_str = timestamp_match.group(1)
+        try:
+            timestamp = datetime.strptime(
+                timestamp_str, '%Y-%m-%d %a %H:%M')
+
+            if i + 1 < len(lines):
+                next_line = lines[i + 1].strip()
+                if next_line.startswith(('- [ ] ', '- [X] ')):
+                    is_completed = next_line.startswith('- [X] ')
+                    task_content = next_line[6:]
+                    task = Task(task_content, timestamp, is_completed)
+                    if self.verbose:
+                        status = "DONE" if is_completed else "TODO"
+                        msg = (f"Parsed Journelly task: [{status}] "
+                               f"{task_content} at {timestamp_str}")
+                        print(msg)
+                    return task, 1  # Consumed 1 extra line for timestamp
+                else:
+                    msg = (f"Skipping malformed Journelly entry (task line "
+                           f"missing after timestamp): '{line}'")
+                    self.warnings.append(msg)
+            else:
+                msg = (f"Skipping malformed Journelly entry (task line "
+                       f"missing at end of file): '{line}'")
+                self.warnings.append(msg)
+        except ValueError:
+            msg = (f"Skipping entry in Journelly file due to "
+                   f"invalid timestamp: '{timestamp_str}'")
+            self.warnings.append(msg)
+
+        return None, 0
 
     @override
     def _format_tasks(self, tasks: List[Task]) -> List[str]:
