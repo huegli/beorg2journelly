@@ -93,6 +93,7 @@ class BeOrgParser(BaseParser):
             line = lines[i].strip()
 
             # Look for level 1 headers starting with TODO or DONE
+            # Break the search for level 1 header starting with TODO or DONE including the exception handling into a seperate funtion AI!
             if line.startswith('* TODO ') or line.startswith('* DONE '):
                 is_completed = line.startswith('* DONE ')
                 task_content = line[7:]  # Remove "* TODO " or "* DONE "
