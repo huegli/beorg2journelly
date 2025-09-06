@@ -269,7 +269,7 @@ class TaskSynchronizer:
             journelly_task = journelly_by_content.get(content)
 
             if beorg_task and journelly_task:
-                # Task exists in both files
+                # Task exists in both files, refactor this into a separate function, AI!
                 if self.verbose:
                     print(f"Task exists in both files: {content}")
 
@@ -299,7 +299,7 @@ class TaskSynchronizer:
                         print(msg)
 
             elif beorg_task or journelly_task:
-                # Task exists in one file only
+                # Task exists in one file only, refactor this into a separate function AI!
                 single_task = beorg_task or journelly_task
                 source = "BeOrg" if beorg_task else "Journelly"
                 if self.verbose:
