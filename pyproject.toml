@@ -1,0 +1,9 @@
+[project]
+name = "beorg2journelly"
+version = "0.1.0"
+description = "Two-way synchronization of TODO tasks"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "basedpyright>=1.31.4",
+]
