@@ -13,7 +13,7 @@ import argparse
 import re
 import sys
 from datetime import datetime
-from typing import Dict, List, NamedTuple, Optional, Set, Tuple, override
+from typing import NamedTuple, Optional, override
 import abc
 
 
@@ -39,7 +39,7 @@ class BaseParser(abc.ABC):
 
     def __init__(self, verbose: bool = False):
         self.verbose = verbose
-        self.warnings: List[str] = []
+        self.warnings: list[str] = []
 
     def _create_task_and_log(self, task_content: str, timestamp: datetime,
                              is_completed: bool, timestamp_str: str,
@@ -53,7 +53,7 @@ class BaseParser(abc.ABC):
             print(msg)
         return task
 
-    def parse_file(self, filepath: str) -> List[Task]:
+    def parse_file(self, filepath: str) -> list[Task]:
         """Read a file and parse tasks from its content."""
         try:
             with open(filepath, 'r', encoding='utf-8') as f:
@@ -69,11 +69,11 @@ class BaseParser(abc.ABC):
         return self._parse_tasks(content)
 
     @abc.abstractmethod
-    def _parse_tasks(self, content: str) -> List[Task]:
+    def _parse_tasks(self, content: str) -> list[Task]:
         """Parse tasks from a string of file content."""
         raise NotImplementedError
 
-    def write_file(self, filepath: str, tasks: List[Task]) -> None:
+    def write_file(self, filepath: str, tasks: list[Task]) -> None:
         """Format and write tasks to a file, sorted by timestamp."""
         sorted_tasks = sorted(tasks, key=lambda t: t.timestamp, reverse=True)
         lines = self._format_tasks(sorted_tasks)
@@ -86,7 +86,7 @@ class BaseParser(abc.ABC):
             raise FileIOError(f"Error writing to file {filepath}: {e}") from e
 
     @abc.abstractmethod
-    def _format_tasks(self, tasks: List[Task]) -> List[str]:
+    def _format_tasks(self, tasks: list[Task]) -> list[str]:
         """Format tasks into a list of strings for file writing."""
         raise NotImplementedError
 
@@ -95,7 +95,7 @@ class BeOrgParser(BaseParser):
     """Parser for BeOrg inbox.org file format."""
 
     @override
-    def _parse_tasks(self, content: str) -> List[Task]:
+    def _parse_tasks(self, content: str) -> list[Task]:
         """Parse tasks from BeOrg file content."""
         tasks = []
         lines = content.strip().split('\n')
@@ -112,8 +112,8 @@ class BeOrgParser(BaseParser):
 
         return tasks
 
-    def _parse_task_from_line(self, line: str, lines: List[str], i: int
-                              ) -> Tuple[Optional[Task], int]:
+    def _parse_task_from_line(self, line: str, lines: list[str], i: int
+                              ) -> tuple[Optional[Task], int]:
         """Parses a single task starting from a given line if it's a header."""
         if not (line.startswith('* TODO ') or line.startswith('* DONE ')):
             return None, 0
@@ -125,8 +125,8 @@ class BeOrgParser(BaseParser):
             task_content, is_completed, lines, i, line)
 
     def _parse_beorg_timestamp_and_create_task(
-            self, task_content: str, is_completed: bool, lines: List[str],
-            i: int, header_line: str) -> Tuple[Optional[Task], int]:
+            self, task_content: str, is_completed: bool, lines: list[str],
+            i: int, header_line: str) -> tuple[Optional[Task], int]:
         """Parses timestamp for a BeOrg task and returns the Task object."""
         if i + 1 < len(lines):
             next_line = lines[i + 1].strip()
@@ -157,7 +157,7 @@ class BeOrgParser(BaseParser):
         return None, 0
 
     @override
-    def _format_tasks(self, tasks: List[Task]) -> List[str]:
+    def _format_tasks(self, tasks: list[Task]) -> list[str]:
         """Formats tasks into BeOrg format."""
         lines = []
         for task in tasks:
@@ -172,7 +172,7 @@ class JournellyParser(BaseParser):
     """Parser for Journelly.org file format."""
 
     @override
-    def _parse_tasks(self, content: str) -> List[Task]:
+    def _parse_tasks(self, content: str) -> list[Task]:
         """Parse tasks from Journelly file content."""
         tasks = []
         lines = content.strip().split('\n')
@@ -189,8 +189,8 @@ class JournellyParser(BaseParser):
 
         return tasks
 
-    def _parse_journelly_task_from_line(self, line: str, lines: List[str],
-                                        i: int) -> Tuple[Optional[Task], int]:
+    def _parse_journelly_task_from_line(self, line: str, lines: list[str],
+                                        i: int) -> tuple[Optional[Task], int]:
         """Parses a Journelly task if the line is a timestamp header."""
         pattern = r'\* \[(\d{4}-\d{2}-\d{2} \w{3} \d{2}:\d{2})\] @ -'
         timestamp_match = re.match(pattern, line)
@@ -227,7 +227,7 @@ class JournellyParser(BaseParser):
         return None, 0
 
     @override
-    def _format_tasks(self, tasks: List[Task]) -> List[str]:
+    def _format_tasks(self, tasks: list[Task]) -> list[str]:
         """Formats tasks into Journelly format."""
         lines = []
         for task in tasks:
@@ -244,21 +244,21 @@ class TaskSynchronizer:
     def __init__(self, verbose: bool = False):
         self.verbose = verbose
 
-    def synchronize(self, beorg_tasks: List[Task],
-                    journelly_tasks: List[Task]) -> Tuple[
-                        List[Task], List[Task]]:
+    def synchronize(self, beorg_tasks: list[Task],
+                    journelly_tasks: list[Task]) -> tuple[
+                        list[Task], list[Task]]:
         """
         Synchronize tasks between BeOrg and Journelly formats.
         Returns tuple of (beorg_tasks, journelly_tasks).
         """
         # Create lookup dictionaries by task content
-        beorg_by_content: Dict[str, Task] = {
+        beorg_by_content: dict[str, Task] = {
             task.content: task for task in beorg_tasks}
-        journelly_by_content: Dict[str, Task] = {
+        journelly_by_content: dict[str, Task] = {
             task.content: task for task in journelly_tasks}
 
         # Find all unique task contents
-        all_contents: Set[str] = (
+        all_contents: set[str] = (
             set(beorg_by_content.keys()) | set(journelly_by_content.keys()))
 
         final_beorg_tasks = []
@@ -280,8 +280,8 @@ class TaskSynchronizer:
         return final_beorg_tasks, final_journelly_tasks
 
     def _handle_task_in_both_files(self, beorg_task: Task, journelly_task: Task,
-                                   final_beorg_tasks: List[Task],
-                                   final_journelly_tasks: List[Task]):
+                                   final_beorg_tasks: list[Task],
+                                   final_journelly_tasks: list[Task]):
         """Handles synchronization for a task present in both files."""
         content = beorg_task.content
         if self.verbose:
@@ -314,8 +314,8 @@ class TaskSynchronizer:
 
     def _handle_task_in_one_file(self, beorg_task: Optional[Task],
                                  journelly_task: Optional[Task],
-                                 final_beorg_tasks: List[Task],
-                                 final_journelly_tasks: List[Task]):
+                                 final_beorg_tasks: list[Task],
+                                 final_journelly_tasks: list[Task]):
         """Handles synchronization for a task present in only one file."""
         single_task = beorg_task or journelly_task
         source = "BeOrg" if beorg_task else "Journelly"
